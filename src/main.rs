@@ -1,4 +1,4 @@
-use crate::api::{ApiError, Client};
+use crate::api::{ApiError, Client, Message, Role};
 use std::env;
 
 mod api;
@@ -7,13 +7,18 @@ mod api;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let inference_url = env::var("INFERENCE_URL").expect("INFERENCE_URL not set");
     let inference_key = env::var("INFERENCE_KEY").expect("INFERENCE_KEY not set");
-    let inference_model = env::var("INFERENCE_MODEL").expect("INFERENCE_MODEL not set");
+    let inference_model_id = env::var("INFERENCE_MODEL_ID").expect("INFERENCE_MODEL_ID not set");
 
-    let client = Client::new(inference_url, inference_key, inference_model);
+    let client = Client::new(inference_url, inference_key, inference_model_id);
 
     let prompt = "Write a short story about a robot learning to love.";
 
-    match client.chat_completion(prompt).await {
+    let messages = vec![Message {
+        role: Role::User,
+        content: prompt.to_string(),
+    }];
+
+    match client.chat_completion(messages).await {
         Ok(response) => {
             if let Some(choice) = response.choices.get(0) {
                 println!("Generated Text:\n{}", choice.message.content);

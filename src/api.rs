@@ -11,6 +11,16 @@ pub enum ApiError {
     ApiCallError(String), // To capture error messages from the API
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Role {
+    #[serde(rename = "system")]
+    System,
+    #[serde(rename = "user")]
+    User,
+    #[serde(rename = "assistant")]
+    Assistant,
+}
+
 #[derive(Serialize)]
 pub struct ChatCompletionRequest {
     pub model: String,
@@ -23,7 +33,7 @@ pub struct ChatCompletionRequest {
 
 #[derive(Serialize, Deserialize)]
 pub struct Message {
-    pub role: String,
+    pub role: Role,
     pub content: String,
 }
 
@@ -54,25 +64,25 @@ pub struct Usage {
 pub struct Client {
     inference_url: String,
     inference_key: String,
-    inference_model: String,
+    inference_model_id: String,
 }
 
 impl Client {
-    pub fn new(inference_url: String, inference_key: String, inference_model: String) -> Self {
+    pub fn new(inference_url: String, inference_key: String, inference_model_id: String) -> Self {
         Self {
             inference_url,
             inference_key,
-            inference_model,
+            inference_model_id,
         }
     }
 
-    pub async fn chat_completion(&self, prompt: &str) -> Result<ChatCompletionResponse, ApiError> {
+    pub async fn chat_completion(
+        &self,
+        messages: Vec<Message>,
+    ) -> Result<ChatCompletionResponse, ApiError> {
         let request_body = ChatCompletionRequest {
-            model: self.inference_model.clone(),
-            messages: vec![Message {
-                role: "user".to_string(),
-                content: prompt.to_string(),
-            }],
+            model: self.inference_model_id.clone(),
+            messages,
             temperature: None,
             max_tokens: None,
         };
