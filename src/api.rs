@@ -29,6 +29,35 @@ pub struct ChatCompletionRequest {
     pub temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<Tool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_choice: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f32>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Tool {
+    pub r#type: String,
+    pub function: Function,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Function {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<FunctionParameters>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FunctionParameters {
+    pub r#type: String,
+    pub properties: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -85,6 +114,9 @@ impl Client {
             messages,
             temperature: None,
             max_tokens: None,
+            tools: None,
+            tool_choice: None,
+            top_p: None,
         };
 
         let client = reqwest::Client::new();
