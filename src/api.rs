@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -8,7 +9,7 @@ pub enum ApiError {
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
     #[error("API error: {0}")]
-    ApiCallError(String), // To capture error messages from the API
+    ApiCallError(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -38,9 +39,34 @@ pub struct ChatCompletionRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Tool {
-    pub r#type: String,
-    pub function: Function,
+pub struct HerokuToolRuntimeParams {
+    pub target_app_name: String,
+    pub tool_params: HerokuToolParams,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct HerokuToolParams {
+    pub cmd: String,
+    pub description: String,
+    pub parameters: FunctionParameters,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum Tool {
+    Function {
+        r#type: String, // Should be "function"
+        function: Function,
+    },
+    Mcp {
+        r#type: String, // Should be "mcp"
+        name: String,
+    },
+    HerokuTool {
+        r#type: String, // Should be "heroku_tool"
+        name: String,
+        runtime_params: HerokuToolRuntimeParams,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -60,7 +86,7 @@ pub struct FunctionParameters {
     pub required: Option<Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Message {
     pub role: Role,
     pub content: String,
@@ -90,6 +116,29 @@ pub struct Usage {
     pub total_tokens: u32,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct McpServerResponse {
+    pub id: String,
+    pub app_id: String,
+    pub process_type: String,
+    pub process_command: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub tools: Vec<ToolDetails>,
+    pub server_status: String,
+    pub primitives_status: String,
+    pub namespace: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ToolDetails {
+    pub name: String,
+    pub namespaced_name: String,
+    pub description: String,
+    pub input_schema: Value,
+    pub annotations: Value,
+}
+
 pub struct Client {
     inference_url: String,
     inference_key: String,
@@ -108,13 +157,14 @@ impl Client {
     pub async fn chat_completion(
         &self,
         messages: Vec<Message>,
+        tools: Option<Vec<Tool>>,
     ) -> Result<ChatCompletionResponse, ApiError> {
         let request_body = ChatCompletionRequest {
             model: self.inference_model_id.clone(),
             messages,
             temperature: None,
             max_tokens: None,
-            tools: None,
+            tools,
             tool_choice: None,
             top_p: None,
         };
@@ -123,12 +173,34 @@ impl Client {
         let response = client
             .post(format!("{}/v1/chat/completions", self.inference_url))
             .header("Authorization", format!("Bearer {}", self.inference_key))
+            .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
             .await?;
 
         if response.status().is_success() {
             let response_body = response.json::<ChatCompletionResponse>().await?;
+            Ok(response_body)
+        } else {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown API error".to_string());
+            Err(ApiError::ApiCallError(error_text))
+        }
+    }
+
+    pub async fn list_mcp_servers(&self) -> Result<Vec<McpServerResponse>, ApiError> {
+        let client = reqwest::Client::new();
+        let response = client
+            .get(format!("{}/v1/mcp/servers", self.inference_url))
+            .header("Authorization", format!("Bearer {}", self.inference_key))
+            .header("Content-Type", "application/json")
+            .send()
+            .await?;
+
+        if response.status().is_success() {
+            let response_body = response.json::<Vec<McpServerResponse>>().await?;
             Ok(response_body)
         } else {
             let error_text = response
