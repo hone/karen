@@ -1,4 +1,4 @@
-use crate::api::{ApiError, Client, Message, Role, Tool};
+use crate::api::{ApiError, Client, Message, Role};
 use std::env;
 
 mod api;
@@ -31,12 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         role: Role::User,
         content: prompt.to_string(),
     }];
-    let tools = vec![Tool::Mcp {
-        r#type: "mcp".to_string(),
-        name: "mcp/get_cards".to_string(),
-    }];
 
-    match client.chat_completion(messages, Some(tools)).await {
+    match client.chat_completion(messages).await {
         Ok(response) => {
             if let Some(choice) = response.choices.get(0) {
                 println!("Generated Text:\n{}", choice.message.content);
