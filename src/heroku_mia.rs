@@ -6,7 +6,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ApiError {
+pub enum HerokuMiaError {
     #[error("Network error: {0}")]
     ReqwestError(#[from] reqwest::Error),
     #[error("JSON error: {0}")]
@@ -230,7 +230,7 @@ impl Client {
     pub async fn agents_call(
         &self,
         messages: Vec<Message>,
-    ) -> Result<Vec<CompletionObject>, ApiError> {
+    ) -> Result<Vec<CompletionObject>, HerokuMiaError> {
         let client = reqwest::Client::new();
         let request_builder = client
             .get(format!("{}/v1/agents/heroku", self.inference_url))
@@ -259,7 +259,7 @@ impl Client {
     pub async fn chat_completion(
         &self,
         messages: Vec<Message>,
-    ) -> Result<ChatCompletionResponse, ApiError> {
+    ) -> Result<ChatCompletionResponse, HerokuMiaError> {
         let request_body = ChatCompletionRequest {
             model: self.inference_model_id.clone(),
             messages,
@@ -290,11 +290,11 @@ impl Client {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown API error".to_string());
-            Err(ApiError::ApiCallError(error_text))
+            Err(HerokuMiaError::ApiCallError(error_text))
         }
     }
 
-    pub async fn list_mcp_servers(&self) -> Result<Vec<McpServerResponse>, ApiError> {
+    pub async fn list_mcp_servers(&self) -> Result<Vec<McpServerResponse>, HerokuMiaError> {
         let client = reqwest::Client::new();
         let response = client
             .get(format!("{}/v1/mcp/servers", self.inference_url))
@@ -311,7 +311,7 @@ impl Client {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown API error".to_string());
-            Err(ApiError::ApiCallError(error_text))
+            Err(HerokuMiaError::ApiCallError(error_text))
         }
     }
 }

@@ -1,7 +1,7 @@
-use crate::api::{ApiError, Client, Message, Role};
+use crate::heroku_mia::{Client, HerokuMiaError, Message, Role};
 use std::env;
 
-mod api;
+mod heroku_mia;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Err(e) => {
-            eprintln!("API Error listing MCP servers: {}", e);
+            eprintln!("Heroku MIA Error listing MCP servers: {}", e);
         }
     }
 
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Err(e) => {
-            eprintln!("API Error: {}", e);
+            eprintln!("Heroku MIA Error: {}", e);
         }
     }
 
