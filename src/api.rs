@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use reqwest_eventsource::{Event, EventSource};
+use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -29,19 +30,57 @@ pub struct ChatCompletionRequest {
     pub model: String,
     pub messages: Vec<Message>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
+    pub extended_thinking: Option<ExtendedThinking>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<ChatpCompletionTool>>,
+    pub stop: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_choice: Option<String>,
+    pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_choice: Option<ToolChoice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ChatCompletionTool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ChatpCompletionTool {
+#[derive(Serialize, Debug)]
+pub struct ExtendedThinking {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    budget_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    include_reasoning: Option<bool>,
+}
+
+#[derive(Debug)]
+pub enum ToolChoice {
+    None,
+    Auto,
+    Required,
+    Tool(ChatCompletionTool),
+}
+
+impl Serialize for ToolChoice {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            ToolChoice::None => serializer.serialize_str("none"),
+            ToolChoice::Auto => serializer.serialize_str("auto"),
+            ToolChoice::Required => serializer.serialize_str("required"),
+            ToolChoice::Tool(tool) => tool.serialize(serializer),
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct ChatCompletionTool {
     r#type: String, // always "function"
     function: Function,
 }
@@ -224,8 +263,11 @@ impl Client {
         let request_body = ChatCompletionRequest {
             model: self.inference_model_id.clone(),
             messages,
+            extended_thinking: None,
             temperature: None,
             max_tokens: None,
+            stop: None,
+            stream: Some(false), // Assuming stream should be false by default for non-streaming chat completion
             tools: None,
             tool_choice: None,
             top_p: None,
@@ -271,5 +313,57 @@ impl Client {
                 .unwrap_or_else(|_| "Unknown API error".to_string());
             Err(ApiError::ApiCallError(error_text))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_tool_choice_serialize_none() {
+        let tool_choice = ToolChoice::None;
+        let serialized = serde_json::to_string(&tool_choice).unwrap();
+        assert_eq!(serialized, "\"none\"");
+    }
+
+    #[test]
+    fn test_tool_choice_serialize_auto() {
+        let tool_choice = ToolChoice::Auto;
+        let serialized = serde_json::to_string(&tool_choice).unwrap();
+        assert_eq!(serialized, "\"auto\"");
+    }
+
+    #[test]
+    fn test_tool_choice_serialize_required() {
+        let tool_choice = ToolChoice::Required;
+        let serialized = serde_json::to_string(&tool_choice).unwrap();
+        assert_eq!(serialized, "\"required\"");
+    }
+
+    #[test]
+    fn test_tool_choice_serialize_tool() {
+        let tool = ChatCompletionTool {
+            r#type: "function".to_string(),
+            function: Function {
+                name: "my_function".to_string(),
+                description: Some("A test function".to_string()),
+                parameters: None,
+            },
+        };
+        let tool_choice = ToolChoice::Tool(tool);
+        let serialized = serde_json::to_string(&tool_choice).unwrap();
+        let expected = json!({
+            "type": "function",
+            "function": {
+                "name": "my_function",
+                "description": "A test function"
+            }
+        })
+        .to_string();
+        let serialized_value: Value = serde_json::from_str(&serialized).unwrap();
+        let expected_value: Value = serde_json::from_str(&expected).unwrap();
+        assert_eq!(serialized_value, expected_value);
     }
 }
