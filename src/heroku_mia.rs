@@ -82,7 +82,7 @@ impl Serialize for ToolChoice {
 #[derive(Serialize, Debug)]
 pub struct ChatCompletionTool {
     r#type: String, // always "function"
-    function: Function,
+    function: FunctionDefinition,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -115,7 +115,7 @@ pub enum AgentToolType {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Function {
+pub struct FunctionDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -132,9 +132,39 @@ pub struct FunctionParameters {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Message {
-    pub role: Role,
-    pub content: String,
+#[serde(tag = "role")]
+#[serde(rename_all = "snake_case")]
+pub enum Message {
+    User {
+        content: String,
+    },
+    Assistant {
+        content: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        refusal: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tool_calls: Option<Vec<ToolCall>>,
+    },
+    System {
+        content: serde_json::Value, // Can be string or array
+    },
+    Tool {
+        content: serde_json::Value,
+        tool_call_id: String,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ToolCall {
+    id: String,
+    r#type: String, // always "function"
+    function: FunctionCall,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FunctionCall {
+    name: String,
+    arguments: serde_json::Value,
 }
 
 #[derive(Deserialize, Debug)]
@@ -346,7 +376,7 @@ mod tests {
     fn test_tool_choice_serialize_tool() {
         let tool = ChatCompletionTool {
             r#type: "function".to_string(),
-            function: Function {
+            function: FunctionDefinition {
                 name: "my_function".to_string(),
                 description: Some("A test function".to_string()),
                 parameters: None,

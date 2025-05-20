@@ -27,15 +27,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let prompt = "Write a short story about a robot learning to love.";
-    let messages = vec![Message {
-        role: Role::User,
+    let messages = vec![Message::User {
         content: prompt.to_string(),
     }];
 
     match client.chat_completion(messages).await {
         Ok(response) => {
             if let Some(choice) = response.choices.get(0) {
-                println!("Generated Text:\n{}", choice.message.content);
+                match &choice.message {
+                    Message::Assistant { content, .. } => println!("Generated Text:\n{}", content),
+                    Message::System { content, .. } => println!("Generated Text:\n{}", content),
+                    Message::Tool { content, .. } => println!("Generated Text:\n{}", content),
+                    Message::User { content, .. } => println!("Generated Texet:\n{}", content),
+                }
             } else {
                 println!("API call successful, but no choices returned.");
             }
