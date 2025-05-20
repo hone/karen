@@ -52,7 +52,7 @@ pub struct ChatCompletionTool {
     function: FunctionDefinition,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct FunctionDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -61,7 +61,7 @@ pub struct FunctionDefinition {
     pub parameters: Option<FunctionParameters>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct FunctionParameters {
     pub r#type: String,
     pub properties: serde_json::Value,

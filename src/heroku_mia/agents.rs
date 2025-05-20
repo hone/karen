@@ -19,7 +19,7 @@ pub struct AgentRequest {
     pub top_p: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct AgentTool {
     r#type: AgentToolType,
     name: String,
@@ -28,14 +28,14 @@ pub struct AgentTool {
     runtime_params: Option<HerokuToolRuntimeParams>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentToolType {
     HerokuTool,
     Mcp,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct HerokuToolRuntimeParams {
     pub target_app_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
