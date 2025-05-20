@@ -172,3 +172,81 @@ pub struct ChatCompletionResponse {
     pub choices: Vec<Choice>,
     pub usage: Usage,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_tool_choice_none_serialization() {
+        let tool_choice_none = ToolChoice::None;
+        let serialized_none = serde_json::to_value(&tool_choice_none).unwrap();
+        assert_eq!(serialized_none, json!("none"));
+    }
+
+    #[test]
+    fn test_tool_choice_auto_serialization() {
+        let tool_choice_auto = ToolChoice::Auto;
+        let serialized_auto = serde_json::to_value(&tool_choice_auto).unwrap();
+        assert_eq!(serialized_auto, json!("auto"));
+    }
+
+    #[test]
+    fn test_tool_choice_required_serialization() {
+        let tool_choice_required = ToolChoice::Required;
+        let serialized_required = serde_json::to_value(&tool_choice_required).unwrap();
+        assert_eq!(serialized_required, json!("required"));
+    }
+
+    #[test]
+    fn test_tool_choice_tool_serialization() {
+        let tool = ChatCompletionTool {
+            r#type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "get_weather".to_string(),
+                description: Some("Get the current weather in a given location".to_string()),
+                parameters: Some(FunctionParameters {
+                    r#type: "object".to_string(),
+                    properties: json!({
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                        },
+                    }),
+                    required: Some(vec!["location".to_string()]),
+                }),
+            },
+        };
+        let tool_choice_tool = ToolChoice::Tool(tool);
+        let serialized_tool = serde_json::to_value(&tool_choice_tool).unwrap();
+        assert_eq!(
+            serialized_tool,
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the current weather in a given location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "The city and state, e.g. San Francisco, CA"
+                            },
+                            "unit": {
+                                "type": "string",
+                                "enum": ["celsius", "fahrenheit"]
+                            }
+                        },
+                        "required": ["location"]
+                    }
+                }
+            })
+        );
+    }
+}
