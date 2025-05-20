@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let inference_key = env::var("INFERENCE_KEY").expect("INFERENCE_KEY not set");
     let inference_model_id = env::var("INFERENCE_MODEL_ID").expect("INFERENCE_MODEL_ID not set");
 
-    let client = Client::new(inference_url, inference_key, inference_model_id.clone());
+    let client = Client::new(inference_url, inference_key);
 
     match client.list_mcp_servers().await {
         Ok(servers) => {

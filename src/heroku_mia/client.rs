@@ -24,16 +24,14 @@ pub enum HerokuMiaError {
 pub struct Client {
     inference_url: String,
     inference_key: String,
-    inference_model_id: String,
     reqwest_client: ReqwestClient,
 }
 
 impl Client {
-    pub fn new(inference_url: String, inference_key: String, inference_model_id: String) -> Self {
+    pub fn new(inference_url: String, inference_key: String) -> Self {
         Self {
             inference_url,
             inference_key,
-            inference_model_id,
             reqwest_client: ReqwestClient::new(),
         }
     }
