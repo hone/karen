@@ -1,4 +1,4 @@
-use crate::heroku_mia::{Client, types::Message};
+use crate::heroku_mia::{Client, chat_completion::ChatCompletionRequest, types::Message};
 use std::env;
 
 mod heroku_mia;
@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let inference_key = env::var("INFERENCE_KEY").expect("INFERENCE_KEY not set");
     let inference_model_id = env::var("INFERENCE_MODEL_ID").expect("INFERENCE_MODEL_ID not set");
 
-    let client = Client::new(inference_url, inference_key, inference_model_id);
+    let client = Client::new(inference_url, inference_key, inference_model_id.clone());
 
     match client.list_mcp_servers().await {
         Ok(servers) => {
@@ -31,7 +31,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         content: prompt.to_string(),
     }];
 
-    match client.chat_completion(messages).await {
+    let request = ChatCompletionRequest::builder(inference_model_id, messages).build();
+
+    match client.chat_completion(&request).await {
         Ok(response) => {
             if let Some(choice) = response.choices.get(0) {
                 match &choice.message {

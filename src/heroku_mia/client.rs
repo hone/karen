@@ -72,26 +72,14 @@ impl Client {
 
     pub async fn chat_completion(
         &self,
-        messages: Vec<Message>,
+        request_body: &ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse, HerokuMiaError> {
-        let request_body = ChatCompletionRequest {
-            model: self.inference_model_id.clone(),
-            messages,
-            extended_thinking: None,
-            temperature: None,
-            max_tokens: None,
-            stop: None,
-            stream: Some(false),
-            tools: None,
-            tool_choice: None,
-            top_p: None,
-        };
         let response = self
             .reqwest_client
             .post(format!("{}/v1/chat/completions", self.inference_url))
             .header("Authorization", format!("Bearer {}", self.inference_key))
             .header("Content-Type", "application/json")
-            .json(&request_body)
+            .json(request_body)
             .send()
             .await?;
 
