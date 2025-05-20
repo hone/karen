@@ -13,6 +13,8 @@ use super::{
 pub enum HerokuMiaError {
     #[error("Network error: {0}")]
     ReqwestError(#[from] reqwest::Error),
+    #[error("Server Side Event error: {0}")]
+    EventSourceError(#[from] reqwest_eventsource::Error),
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
     #[error("API error: {0}")]
@@ -60,6 +62,7 @@ impl Client {
                 }
                 Err(err) => {
                     event_source.close();
+                    return Err(HerokuMiaError::EventSourceError(err));
                 }
             }
         }
