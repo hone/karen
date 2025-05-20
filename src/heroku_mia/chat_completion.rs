@@ -163,12 +163,13 @@ impl ChatCompletionRequest {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, PartialEq, Debug)]
 pub struct ChatCompletionResponse {
     pub id: String,
     pub object: String,
     pub created: u64,
     pub model: String,
+    pub system_fingerprint: Option<String>,
     pub choices: Vec<Choice>,
     pub usage: Usage,
 }
@@ -248,5 +249,68 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn test_chat_completion_response_deserialization() {
+        let json_data = json!({
+          "id": "chatcmpl-1839afa8133ceda215788",
+          "object": "chat.completion",
+          "created": 1745619466,
+          "model": "claude-3-7-sonnet",
+          "system_fingerprint": "heroku-inf-1y38gdr",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "Hi! How can I help you today?",
+                "refusal": null
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 8,
+            "completion_tokens": 12,
+            "total_tokens": 20
+          }
+        });
+
+        let response: ChatCompletionResponse = serde_json::from_value(json_data).unwrap();
+
+        assert_eq!(response.id, "chatcmpl-1839afa8133ceda215788");
+        assert_eq!(response.object, "chat.completion");
+        assert_eq!(response.created, 1745619466);
+        assert_eq!(response.model, "claude-3-7-sonnet");
+        assert_eq!(
+            response.system_fingerprint,
+            Some("heroku-inf-1y38gdr".to_string())
+        );
+        assert_eq!(response.choices.len(), 1);
+        assert_eq!(response.usage.prompt_tokens, 8);
+        assert_eq!(response.usage.completion_tokens, 12);
+        assert_eq!(response.usage.total_tokens, 20);
+
+        let choice = &response.choices[0];
+        assert_eq!(choice.index, 0);
+        assert_eq!(choice.finish_reason, "stop");
+
+        match &choice.message {
+            Message::Assistant {
+                content,
+                refusal,
+                tool_calls,
+            } => {
+                assert_eq!(content, "Hi! How can I help you today?");
+                assert_eq!(refusal, &None);
+                assert_eq!(tool_calls, &None);
+            }
+            _ => panic!("Unexpected message type"),
+        }
+
+        assert_eq!(response.usage.prompt_tokens, 8);
+        assert_eq!(response.usage.completion_tokens, 12);
+        assert_eq!(response.usage.total_tokens, 20);
     }
 }

@@ -118,7 +118,7 @@ pub struct HerokuToolRuntimeParams {
     pub tool_params: Option<Value>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, PartialEq, Debug)]
 pub struct CompletionObject {
     pub id: String,
     pub object: Object,
@@ -129,7 +129,7 @@ pub struct CompletionObject {
     pub usage: Usage,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, PartialEq, Debug)]
 pub enum Object {
     #[serde(rename = "chat.completion")]
     ChatCompletion,
