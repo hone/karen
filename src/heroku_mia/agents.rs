@@ -30,9 +30,9 @@ pub struct AgentRequestBuilder {
 }
 
 impl AgentRequestBuilder {
-    pub fn new(model: String, messages: Vec<Message>) -> Self {
+    pub fn new(model: impl Into<String>, messages: Vec<Message>) -> Self {
         AgentRequestBuilder {
-            model,
+            model: model.into(),
             messages,
             max_tokens_per_inference_request: None,
             stop: None,
@@ -84,8 +84,8 @@ impl AgentRequestBuilder {
 }
 
 impl AgentRequest {
-    pub fn builder(model: String, messages: Vec<Message>) -> AgentRequestBuilder {
-        AgentRequestBuilder::new(model, messages)
+    pub fn builder(model: impl Into<String>, messages: Vec<Message>) -> AgentRequestBuilder {
+        AgentRequestBuilder::new(model.into(), messages)
     }
 }
 
@@ -95,7 +95,51 @@ pub struct AgentTool {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     runtime_params: Option<HerokuToolRuntimeParams>,
+}
+
+impl AgentTool {
+    pub fn builder(r#type: AgentToolType, name: impl Into<String>) -> AgentToolBuilder {
+        AgentToolBuilder::new(r#type, name.into())
+    }
+}
+
+pub struct AgentToolBuilder {
+    r#type: AgentToolType,
+    name: String,
+    description: Option<String>,
+    runtime_params: Option<HerokuToolRuntimeParams>,
+}
+
+impl AgentToolBuilder {
+    pub fn new(r#type: AgentToolType, name: String) -> Self {
+        AgentToolBuilder {
+            r#type,
+            name,
+            description: None,
+            runtime_params: None,
+        }
+    }
+
+    pub fn description(mut self, description: String) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    pub fn runtime_params(mut self, runtime_params: HerokuToolRuntimeParams) -> Self {
+        self.runtime_params = Some(runtime_params);
+        self
+    }
+
+    pub fn build(self) -> AgentTool {
+        AgentTool {
+            r#type: self.r#type,
+            name: self.name,
+            description: self.description,
+            runtime_params: self.runtime_params,
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]
