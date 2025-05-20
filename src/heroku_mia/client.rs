@@ -3,7 +3,7 @@ use reqwest::Client as ReqwestClient;
 use thiserror::Error;
 
 use super::{
-    agents::CompletionObject,
+    agents::{AgentRequest, CompletionObject},
     chat_completion::{ChatCompletionRequest, ChatCompletionResponse},
     mcp_servers::McpServerResponse,
     types::Message,
@@ -40,13 +40,14 @@ impl Client {
 
     pub async fn agents_call(
         &self,
-        messages: Vec<Message>,
+        request_body: &AgentRequest,
     ) -> Result<Vec<CompletionObject>, HerokuMiaError> {
         let request_builder = self
             .reqwest_client
             .get(format!("{}/v1/agents/heroku", self.inference_url))
             .header("Authorization", format!("Bearer {}", self.inference_key))
-            .header("Content-Type", "application/json");
+            .header("Content-Type", "application/json")
+            .json(request_body);
         let mut event_source = reqwest_eventsource::EventSource::new(request_builder).unwrap();
 
         let mut messages = Vec::new();
