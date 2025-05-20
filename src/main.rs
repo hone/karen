@@ -1,4 +1,4 @@
-use crate::heroku_mia::{Client, HerokuMiaError, Message, Role};
+use crate::heroku_mia::{Client, types::Message};
 use std::env;
 
 mod heroku_mia;
