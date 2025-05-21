@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use reqwest::Client as ReqwestClient;
+use reqwest_eventsource::{Event, EventSource};
 use thiserror::Error;
 
 use super::{
@@ -46,15 +47,15 @@ impl Client {
             .header("Authorization", format!("Bearer {}", self.inference_key))
             .header("Content-Type", "application/json")
             .json(request_body);
-        let mut event_source = reqwest_eventsource::EventSource::new(request_builder).unwrap();
+        let mut event_source = EventSource::new(request_builder).unwrap();
 
         let mut messages = Vec::new();
         while let Some(event) = event_source.next().await {
             match event {
-                Ok(reqwest_eventsource::Event::Open) => {
+                Ok(Event::Open) => {
                     tracing::debug!("Agent Call: Open Event!");
                 }
-                Ok(reqwest_eventsource::Event::Message(message)) => {
+                Ok(Event::Message(message)) => {
                     tracing::debug!("Agent Call: Received Message");
                     if message.event == "message" {
                         messages.push(serde_json::from_str::<CompletionObject>(&message.data)?);
@@ -64,8 +65,15 @@ impl Client {
                 }
                 Err(err) => {
                     tracing::debug!("Agent Call: Error");
-                    event_source.close();
-                    return Err(HerokuMiaError::EventSourceError(err));
+                    match err {
+                        reqwest_eventsource::Error::StreamEnded => {
+                            event_source.close();
+                            return Ok(messages);
+                        }
+                        _ => {
+                            return Err(err.into());
+                        }
+                    }
                 }
             }
         }

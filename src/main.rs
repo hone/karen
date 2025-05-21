@@ -54,7 +54,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     {
-        let messages = vec![Message::User {
+        let messages = vec![Message::System { content: serde_json::Value::String("You are a helpful expert on the Marvel Champions card game with access to all the card, pack, and set data. When querying for data stick to only official cards. Hero sets or signature sets are identified by their SetId.".to_string()) },
+        Message::User {
             content: "What all the heroes with 14 or greater hit points?".to_string(),
         }];
         let request = AgentRequest::builder(&inference_model_id, messages)
