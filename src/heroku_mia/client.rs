@@ -51,8 +51,11 @@ impl Client {
         let mut messages = Vec::new();
         while let Some(event) = event_source.next().await {
             match event {
-                Ok(reqwest_eventsource::Event::Open) => (),
+                Ok(reqwest_eventsource::Event::Open) => {
+                    tracing::debug!("Agent Call: Open Event!");
+                }
                 Ok(reqwest_eventsource::Event::Message(message)) => {
+                    tracing::debug!("Agent Call: Received Message");
                     if message.event == "message" {
                         messages.push(serde_json::from_str::<CompletionObject>(&message.data)?);
                     } else if message.event == "done" {
@@ -60,6 +63,7 @@ impl Client {
                     }
                 }
                 Err(err) => {
+                    tracing::debug!("Agent Call: Error");
                     event_source.close();
                     return Err(HerokuMiaError::EventSourceError(err));
                 }
