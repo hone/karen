@@ -167,7 +167,7 @@ pub struct CompletionObject {
     pub id: String,
     pub object: Object,
     pub created: u32,
-    pub model: String,
+    pub model: Option<String>,
     pub system_fingerprint: String,
     pub choices: Vec<Choice>,
     pub usage: Usage,

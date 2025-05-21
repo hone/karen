@@ -288,9 +288,9 @@ mod tests {
             Some("heroku-inf-1y38gdr".to_string())
         );
         assert_eq!(response.choices.len(), 1);
-        assert_eq!(response.usage.prompt_tokens, 8);
-        assert_eq!(response.usage.completion_tokens, 12);
-        assert_eq!(response.usage.total_tokens, 20);
+        assert_eq!(response.usage.prompt_tokens, Some(8));
+        assert_eq!(response.usage.completion_tokens, Some(12));
+        assert_eq!(response.usage.total_tokens, Some(20));
 
         let choice = &response.choices[0];
         assert_eq!(choice.index, 0);
@@ -309,8 +309,8 @@ mod tests {
             _ => panic!("Unexpected message type"),
         }
 
-        assert_eq!(response.usage.prompt_tokens, 8);
-        assert_eq!(response.usage.completion_tokens, 12);
-        assert_eq!(response.usage.total_tokens, 20);
+        assert_eq!(response.usage.prompt_tokens, Some(8));
+        assert_eq!(response.usage.completion_tokens, Some(12));
+        assert_eq!(response.usage.total_tokens, Some(20));
     }
 }

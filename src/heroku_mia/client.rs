@@ -42,7 +42,7 @@ impl Client {
     ) -> Result<Vec<CompletionObject>, HerokuMiaError> {
         let request_builder = self
             .reqwest_client
-            .get(format!("{}/v1/agents/heroku", self.inference_url))
+            .post(format!("{}/v1/agents/heroku", self.inference_url))
             .header("Authorization", format!("Bearer {}", self.inference_key))
             .header("Content-Type", "application/json")
             .json(request_body);
