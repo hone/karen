@@ -7,21 +7,22 @@ use crate::heroku_mia::{
     types::Message,
 };
 use std::env;
-use tracing_subscriber;
+use tracing_subscriber::{self, EnvFilter};
 
 mod heroku_mia;
 
-use tracing::{instrument, level_filters::LevelFilter};
+use tracing::instrument;
 
 #[tokio::main]
 #[instrument]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(LevelFilter::INFO.into()),
-        )
-        .init();
+    let filter = if env::var("RUST_LOG").is_ok() {
+        EnvFilter::from_default_env()
+    } else {
+        EnvFilter::new("info")
+    };
+
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let inference_url = env::var("INFERENCE_URL").expect("INFERENCE_URL not set");
     let inference_key = env::var("INFERENCE_KEY").expect("INFERENCE_KEY not set");
