@@ -1,6 +1,10 @@
-use futures_util::StreamExt;
+use futures::{
+    Stream, StreamExt,
+    stream::{self, BoxStream},
+};
 use reqwest::Client as ReqwestClient;
 use reqwest_eventsource::{Event, EventSource};
+use std::pin::Pin;
 use thiserror::Error;
 
 use super::{
@@ -15,6 +19,8 @@ pub enum HerokuMiaError {
     ReqwestError(#[from] reqwest::Error),
     #[error("Server Side Event error: {0}")]
     EventSourceError(#[from] reqwest_eventsource::Error),
+    #[error("RequestBuilder can not be cloned: {0}")]
+    CannotCloneRequestError(#[from] reqwest_eventsource::CannotCloneRequestError),
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
     #[error("API error: {0}")]
@@ -40,47 +46,58 @@ impl Client {
     pub async fn agents_call(
         &self,
         request_body: &AgentRequest,
-    ) -> Result<Vec<CompletionObject>, HerokuMiaError> {
+    ) -> Pin<Box<dyn Stream<Item = Result<CompletionObject, HerokuMiaError>> + Send>> {
         let request_builder = self
             .reqwest_client
             .post(format!("{}/v1/agents/heroku", self.inference_url))
             .header("Authorization", format!("Bearer {}", self.inference_key))
             .header("Content-Type", "application/json")
             .json(request_body);
-        let mut event_source = EventSource::new(request_builder).unwrap();
 
-        let mut messages = Vec::new();
-        while let Some(event) = event_source.next().await {
+        let event_source = match EventSource::new(request_builder) {
+            Ok(es) => es,
+            Err(e) => {
+                return Box::pin(stream::once(async move {
+                    Err(HerokuMiaError::CannotCloneRequestError(e))
+                }));
+            }
+        };
+
+        Box::pin(event_source.filter_map(|event| async move {
             match event {
                 Ok(Event::Open) => {
                     tracing::debug!("Agent Call: Open Event!");
+                    None
                 }
                 Ok(Event::Message(message)) => {
                     if message.event == "message" {
                         tracing::debug!("Agent Call: Received Message");
-                        messages.push(serde_json::from_str::<CompletionObject>(&message.data)?);
+                        match serde_json::from_str::<CompletionObject>(&message.data) {
+                            Ok(obj) => Some(Ok(obj)),
+                            Err(e) => Some(Err(HerokuMiaError::JsonError(e))),
+                        }
                     } else if message.event == "done" {
                         tracing::debug!("Agent Call: Close");
-                        event_source.close();
+                        None
+                    } else {
+                        tracing::error!("Agent Call: Unknown Message {:?}", message);
+                        None
                     }
                 }
                 Err(err) => {
-                    tracing::debug!("Agent Call: Error");
+                    tracing::debug!("Agent Call: Error: {}", err);
                     match err {
                         reqwest_eventsource::Error::StreamEnded => {
                             tracing::debug!("Agent Call: StreamEnded {}", err);
-                            event_source.close();
                         }
                         _ => {
                             tracing::error!("Agent Call: Error {}", err);
                         }
                     }
-                    return Ok(messages);
+                    Some(Err(HerokuMiaError::EventSourceError(err)))
                 }
             }
-        }
-
-        Ok(messages)
+        }))
     }
 
     pub async fn chat_completion(

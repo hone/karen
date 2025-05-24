@@ -1,4 +1,5 @@
 use commands::query::get_original_message_id;
+use futures::StreamExt;
 use serenity::{
     all::{
         CommandDataOptionValue, Context, EventHandler, Interaction, Message as SerenityMessage,
@@ -6,7 +7,9 @@ use serenity::{
     },
     async_trait,
 };
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::Mutex;
 
 use crate::heroku_mia::{self, types::Message as HerokuMiaMessage};
 
@@ -86,63 +89,64 @@ impl EventHandler for Handler {
             return;
         }
 
-        get_original_message_id(&ctx, &msg).await.unwrap();
-
         if let Some(referenced_message) = &msg.referenced_message {
             if referenced_message.author.id == ctx.cache.current_user().id {
                 tracing::info!("Query Reply");
                 let conversations_lock = type_map_keys::ConversationHistory::get(&ctx.data).await;
                 let mut conversations = conversations_lock.write().await;
+                let original_message_id = get_original_message_id(&ctx, &msg).await.unwrap();
 
-                let original_message_id = commands::query::get_original_message_id(&ctx, &msg)
-                    .await
-                    .unwrap();
                 tracing::info!("Query Reply {original_message_id}");
-                if let Some(conversation) = conversations.get_mut(&original_message_id.get()) {
+                if let Some(conversation_vec) = conversations.get_mut(&original_message_id.get()) {
                     tracing::info!("Query Reply {original_message_id}: Found conversation history");
-                    conversation.push(HerokuMiaMessage::User {
+                    conversation_vec.push(HerokuMiaMessage::User {
                         content: msg.content.clone(),
                     });
 
-                    tracing::debug!("Query Reply {original_message_id}: {:?}", conversation);
+                    let conversation_arc = Arc::new(Mutex::new(conversation_vec.clone()));
+                    tracing::debug!("Query Reply {original_message_id}: {:?}", conversation_arc);
 
-                    match commands::query::agents_call(
+                    let mut stream = commands::query::agents_call(
                         &type_map_keys::HerokuMiaClient::get(&ctx.data).await,
                         type_map_keys::AgentTools::get(&ctx.data).await,
                         &type_map_keys::InferenceModelId::get(&ctx.data).await,
-                        conversation,
+                        Arc::clone(&conversation_arc),
                     )
-                    .await
-                    {
-                        Ok(messages) => {
-                            tracing::info!(
-                                "Query Reply {original_message_id}: Agents call successful: {}",
-                                messages.len()
-                            );
-                            for message in messages {
+                    .await;
+
+                    let mut last_message = msg;
+
+                    while let Some(message_result) = stream.next().await {
+                        match message_result {
+                            Ok(message) => {
+                                tracing::info!(
+                                    "Query Reply {original_message_id}: Received streamed message"
+                                );
                                 if !message.is_empty() {
-                                    if let Err(e) = msg.reply(&ctx.http, message).await {
-                                        tracing::error!(
-                                            "Query Reply {original_message_id}: Error sending error message: {:?}",
+                                    match last_message.reply(&ctx.http, message).await {
+                                        Ok(new_msg) => last_message = new_msg,
+                                        Err(e) => tracing::error!(
+                                            "Query Reply {original_message_id}: Error sending message: {:?}",
                                             e
-                                        );
+                                        ),
                                     }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Query Reply {original_message_id}: Heroku MIA Error during agent call: {:?}",
-                                e
-                            );
-                            if let Err(e) = msg
-                                .reply(&ctx.http, "Error communicating with inference service.")
-                                .await
-                            {
+                            Err(e) => {
                                 tracing::error!(
-                                    "Query Reply {original_message_id}: Error sending error message: {:?}",
+                                    "Query Reply {original_message_id}: Heroku MIA Error during agent call: {:?}",
                                     e
                                 );
+                                if let Err(e) = last_message
+                                    .reply(&ctx.http, "Error communicating with inference service.")
+                                    .await
+                                {
+                                    tracing::error!(
+                                        "Query Reply {original_message_id}: Error sending error message: {:?}",
+                                        e
+                                    );
+                                }
+                                break;
                             }
                         }
                     }
