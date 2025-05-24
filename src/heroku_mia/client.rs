@@ -76,6 +76,9 @@ impl Client {
                             Ok(obj) => Some(Ok(obj)),
                             Err(e) => Some(Err(HerokuMiaError::JsonError(e))),
                         }
+                    } else if message.event == "heartbeat" {
+                        tracing::debug!("Agent Call: Heartbeat");
+                        None
                     } else if message.event == "done" {
                         tracing::debug!("Agent Call: Close");
                         None

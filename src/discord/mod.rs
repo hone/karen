@@ -93,17 +93,18 @@ impl EventHandler for Handler {
             if referenced_message.author.id == ctx.cache.current_user().id {
                 tracing::info!("Query Reply");
                 let conversations_lock = type_map_keys::ConversationHistory::get(&ctx.data).await;
-                let mut conversations = conversations_lock.write().await;
+                let mut conversations = conversations_lock.read().await;
                 let original_message_id = get_original_message_id(&ctx, &msg).await.unwrap();
 
                 tracing::info!("Query Reply {original_message_id}");
-                if let Some(conversation_vec) = conversations.get_mut(&original_message_id.get()) {
+                if let Some(conversation_vec) = conversations.get(&original_message_id.get()) {
+                    let mut conversation_copy = conversation_vec.clone();
                     tracing::info!("Query Reply {original_message_id}: Found conversation history");
-                    conversation_vec.push(HerokuMiaMessage::User {
+                    conversation_copy.push(HerokuMiaMessage::User {
                         content: msg.content.clone(),
                     });
 
-                    let conversation_arc = Arc::new(Mutex::new(conversation_vec.clone()));
+                    let conversation_arc = Arc::new(Mutex::new(conversation_copy));
                     tracing::debug!("Query Reply {original_message_id}: {:?}", conversation_arc);
 
                     let mut stream = commands::query::agents_call(
@@ -149,6 +150,13 @@ impl EventHandler for Handler {
                                 break;
                             }
                         }
+                    }
+                    {
+                        let conversations_lock =
+                            type_map_keys::ConversationHistory::get(&ctx.data).await;
+                        let mut conversations = conversations_lock.write().await;
+                        let final_conversation = conversation_arc.lock().await;
+                        conversations.insert(original_message_id.get(), final_conversation.clone());
                     }
                 }
             }
