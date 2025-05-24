@@ -1,17 +1,14 @@
-use heroku_mia::agents::AgentRequest;
-
 use crate::heroku_mia::{
     Client,
     agents::{AgentTool, AgentToolType},
-    chat_completion::ChatCompletionRequest,
-    types::Message,
 };
-use std::env;
+use serenity::{all::ApplicationId, model::prelude::GuildId, prelude::*};
+use std::{collections::HashMap, env, sync::Arc};
+use tracing::instrument;
 use tracing_subscriber::{self, EnvFilter};
 
+mod discord;
 mod heroku_mia;
-
-use tracing::instrument;
 
 #[tokio::main]
 #[instrument]
@@ -32,11 +29,26 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("INFERENCE_URL: {}", inference_url);
     tracing::info!("INFERENCE_MODEL_ID: {}", inference_model_id);
 
-    let client = Client::new(inference_url, inference_key);
+    let discord_token = env::var("DISCORD_TOKEN").expect("Expected env variable: DISCORD_TOKEN");
+    let guild_id = GuildId::new(
+        env::var("DISCORD_GUILD_ID")
+            .expect("Expected env variable: DISCORD_GUILD_ID")
+            .parse()
+            .expect("DISCORD_GUILD_ID must be an integer"),
+    );
+    let application_id = ApplicationId::new(
+        env::var("DISCORD_APPLICATION_ID")
+            .expect("Expected environment variable: DISCORD_APPLICATION_ID")
+            .parse()
+            .expect("application id is not a valid id"),
+    );
 
+    let conversation_history = Arc::new(RwLock::new(HashMap::new()));
+
+    let heroku_mia_client = Client::new(inference_url, inference_key);
     let tools: Vec<AgentTool>;
 
-    match client.list_mcp_servers().await {
+    match heroku_mia_client.list_mcp_servers().await {
         Ok(servers) => {
             tools = servers
                 .into_iter()
@@ -48,85 +60,27 @@ async fn main() -> anyhow::Result<()> {
                 .collect();
         }
         Err(e) => {
-            tracing::error!("Heroku MIA Error listing MCP servers: {}", e);
+            tracing::error!("Heroku MIA Error listing MCP servers: {e}");
             return Err(e)?;
         }
     }
 
+    let mut discord_client =
+        serenity::Client::builder(discord_token, GatewayIntents::GUILD_MESSAGES)
+            .event_handler(discord::Handler {})
+            .await
+            .expect("Error creating discord client.");
     {
-        let messages = vec![Message::System { content: serde_json::Value::String("You are a helpful expert on the Marvel Champions card game with access to all the card, pack, and set data. When querying for data stick to only official cards. Hero sets or signature sets are identified by their SetId.".to_string()) },
-        Message::User {
-            content: "What all the heroes with 14 or greater hit points?".to_string(),
-        }];
-        let request = AgentRequest::builder(&inference_model_id, messages)
-            .tools(tools)
-            .build();
-        tracing::debug!("Making agent call with request: {:?}", request);
-        match client.agents_call(&request).await {
-            Ok(response) => {
-                tracing::info!("Agent call successful");
-                for message in response {
-                    if let Some(choice) = message.choices.get(0) {
-                        match &choice.message {
-                            Message::Assistant { content, .. } => {
-                                tracing::info!("Agent response (Assistant): {}", content);
-                            }
-                            Message::System { content, .. } => {
-                                tracing::info!("Agent response (System): {}", content);
-                            }
-                            Message::Tool { content, .. } => {
-                                tracing::debug!("Agent response (Tool): {}", content);
-                            }
-                            Message::User { content, .. } => {
-                                tracing::info!("Agent response (User): {}", content);
-                            }
-                        }
-                    } else {
-                        tracing::warn!("Agent call successful, but no choices returned.");
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::error!("Heroku MIA Error during agent call: {:?}", e);
-            }
-        }
+        let mut data = discord_client.data.write().await;
+        data.insert::<discord::type_map_keys::ConversationHistory>(conversation_history);
+        data.insert::<discord::type_map_keys::GuildId>(guild_id);
+        data.insert::<discord::type_map_keys::HerokuMiaClient>(heroku_mia_client);
+        data.insert::<discord::type_map_keys::InferenceModelId>(inference_model_id);
+        data.insert::<discord::type_map_keys::AgentTools>(tools);
     }
 
-    {
-        let prompt = "Write a short story about a robot learning to love.";
-        let messages = vec![Message::User {
-            content: prompt.to_string(),
-        }];
-
-        let request = ChatCompletionRequest::builder(&inference_model_id, messages).build();
-        tracing::debug!("Making chat completion call with request: {:?}", request);
-
-        match client.chat_completion(&request).await {
-            Ok(response) => {
-                tracing::info!("Chat completion call successful");
-                if let Some(choice) = response.choices.get(0) {
-                    match &choice.message {
-                        Message::Assistant { content, .. } => {
-                            tracing::info!("Chat completion response (Assistant): {}", content);
-                        }
-                        Message::System { content, .. } => {
-                            tracing::info!("Chat completion response (System): {}", content);
-                        }
-                        Message::Tool { content, .. } => {
-                            tracing::info!("Chat completion response (Tool): {}", content);
-                        }
-                        Message::User { content, .. } => {
-                            tracing::info!("Chat completion response (User): {}", content);
-                        }
-                    }
-                } else {
-                    tracing::warn!("Chat completion call successful, but no choices returned.");
-                }
-            }
-            Err(e) => {
-                tracing::error!("Heroku MIA Error during chat completion call: {:?}", e);
-            }
-        }
+    if let Err(err) = discord_client.start().await {
+        tracing::error!("Discord Client Error: {err}");
     }
 
     Ok(())

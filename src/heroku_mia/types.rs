@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum Role {
     #[serde(rename = "system")]
     System,
@@ -11,7 +11,7 @@ pub enum Role {
     Assistant,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[serde(tag = "role")]
 #[serde(rename_all = "snake_case")]
 pub enum Message {
@@ -34,20 +34,20 @@ pub enum Message {
     },
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct ToolCall {
     id: String,
     r#type: String, // always "function"
     function: FunctionCall,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct FunctionCall {
     name: String,
     arguments: serde_json::Value,
 }
 
-#[derive(Serialize, PartialEq, Debug)]
+#[derive(Serialize, PartialEq, Debug, Clone)]
 pub struct ExtendedThinking {
     #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
@@ -57,14 +57,14 @@ pub struct ExtendedThinking {
     include_reasoning: Option<bool>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Choice {
     pub index: u32,
     pub message: Message,
     pub finish_reason: String,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum FinishReason {
     Stop,
@@ -73,7 +73,7 @@ pub enum FinishReason {
     Empty,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Clone)]
 pub struct Usage {
     pub prompt_tokens: Option<u32>,
     pub completion_tokens: Option<u32>,

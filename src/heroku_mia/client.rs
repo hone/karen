@@ -7,7 +7,6 @@ use super::{
     agents::{AgentRequest, CompletionObject},
     chat_completion::{ChatCompletionRequest, ChatCompletionResponse},
     mcp_servers::McpServerResponse,
-    types::Message,
 };
 
 #[derive(Error, Debug)]
@@ -22,6 +21,7 @@ pub enum HerokuMiaError {
     ApiCallError(String),
 }
 
+#[derive(Debug, Clone)]
 pub struct Client {
     inference_url: String,
     inference_key: String,
@@ -56,10 +56,11 @@ impl Client {
                     tracing::debug!("Agent Call: Open Event!");
                 }
                 Ok(Event::Message(message)) => {
-                    tracing::debug!("Agent Call: Received Message");
                     if message.event == "message" {
+                        tracing::debug!("Agent Call: Received Message");
                         messages.push(serde_json::from_str::<CompletionObject>(&message.data)?);
                     } else if message.event == "done" {
+                        tracing::debug!("Agent Call: Close");
                         event_source.close();
                     }
                 }
@@ -67,13 +68,14 @@ impl Client {
                     tracing::debug!("Agent Call: Error");
                     match err {
                         reqwest_eventsource::Error::StreamEnded => {
+                            tracing::debug!("Agent Call: StreamEnded {}", err);
                             event_source.close();
-                            return Ok(messages);
                         }
                         _ => {
-                            return Err(err.into());
+                            tracing::error!("Agent Call: Error {}", err);
                         }
                     }
+                    return Ok(messages);
                 }
             }
         }
